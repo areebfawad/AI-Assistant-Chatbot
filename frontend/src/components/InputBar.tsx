@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, Sparkles, Code2, Brain, Edit3, Loader2, Eraser, 
   Mic, MicOff, Image as ImageIcon, FileText, X 
 } from 'lucide-react';
 import { PersonaType } from '../types';
+import { FormattingToolbar } from './FormattingToolbar';
 
 interface InputBarProps {
   onSendMessage: (message: string) => void;
@@ -62,6 +63,50 @@ export const InputBar: React.FC<InputBarProps> = ({
     { id: 'creative', name: 'Creative', avatar: <Edit3 className="h-3.5 w-3.5" /> },
     { id: 'analyst', name: 'Analyst', avatar: <Brain className="h-3.5 w-3.5" /> }
   ];
+
+  const [isFocused, setIsFocused] = useState(false);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashSearch, setSlashSearch] = useState('');
+
+  useEffect(() => {
+    if (text.startsWith('/')) {
+      setShowSlashMenu(true);
+      setSlashSearch(text.substring(1).toLowerCase());
+    } else {
+      setShowSlashMenu(false);
+    }
+  }, [text]);
+
+  const filteredSlashOptions = personaOptions.filter(o => o.name.toLowerCase().includes(slashSearch));
+
+  const handleFormat = (prefix: string, suffix: string) => {
+    if (!textareaRef.current) return;
+    const start = textareaRef.current.selectionStart;
+    const end = textareaRef.current.selectionEnd;
+    
+    const selectedText = text.substring(start, end);
+    const newText = text.substring(0, start) + prefix + selectedText + suffix + text.substring(end);
+    
+    setText(newText);
+    
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(start + prefix.length, end + prefix.length);
+      }
+    }, 0);
+  };
+
+  const executeSlashCommand = (personaId: string) => {
+    if (personaId === 'clear') {
+      handleClear();
+    } else {
+      setSelectedPersona(personaId as PersonaType);
+      setText('');
+      setTimeout(() => textareaRef.current?.focus(), 0);
+    }
+    setShowSlashMenu(false);
+  };
 
   // Sync transcribed text to input bar textarea state
   useEffect(() => {
@@ -219,13 +264,59 @@ export const InputBar: React.FC<InputBarProps> = ({
         </div>
 
         {/* Input Text Box Area */}
-        <div className="flex items-end space-x-2 bg-brand-card border border-brand-border focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/25 rounded-2xl p-2 transition-all duration-300">
+        <div className="relative flex items-end space-x-2 bg-brand-card border border-brand-border focus-within:border-brand-primary/50 focus-within:ring-1 focus-within:ring-brand-primary/25 rounded-2xl p-2 transition-all duration-300">
+          
+          <FormattingToolbar 
+            isVisible={isFocused || text.length > 0} 
+            onFormat={handleFormat} 
+          />
+
+          {/* Slash Command Menu */}
+          <AnimatePresence>
+            {showSlashMenu && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-[105%] left-0 w-64 bg-brand-card border border-brand-border rounded-xl shadow-glow overflow-hidden z-30"
+              >
+                <div className="p-2 text-[10px] font-semibold text-brand-muted uppercase tracking-wider border-b border-brand-border/50">
+                  Quick Actions (Slash Commands)
+                </div>
+                <div className="max-h-48 overflow-y-auto scrollbar-thin">
+                  {filteredSlashOptions.map(opt => (
+                    <button
+                      key={opt.id}
+                      onClick={() => executeSlashCommand(opt.id)}
+                      className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-brand-text hover:bg-brand-primary/20 hover:text-brand-primary transition-colors text-left"
+                    >
+                      {opt.avatar}
+                      <span>Switch to <strong>{opt.name}</strong></span>
+                    </button>
+                  ))}
+                  {'clear'.includes(slashSearch) && (
+                    <button
+                      onClick={() => executeSlashCommand('clear')}
+                      className="w-full flex items-center space-x-3 px-3 py-2 text-sm text-brand-error hover:bg-brand-error/20 transition-colors text-left"
+                    >
+                      <Eraser className="h-4 w-4" />
+                      <span>Clear Input</span>
+                    </button>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <textarea
             ref={textareaRef}
             rows={1}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setTimeout(() => setIsFocused(false), 200)}
             placeholder={
               isRecording 
                 ? 'Listening... speak clearly into your microphone' 

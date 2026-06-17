@@ -30,6 +30,13 @@ export const useChat = () => {
 
   const activeConversation = conversations.find(c => c.id === activeConversationId) || null;
 
+  // Migrate old or invalid models in local storage cache
+  useEffect(() => {
+    if (settings.model && (settings.model.includes('2.5') || settings.model.includes('3.5'))) {
+      setSettings(prev => ({ ...prev, model: 'gemini-1.5-flash' }));
+    }
+  }, [settings.model, setSettings]);
+
   // Create new conversation
   const createNewChat = useCallback((initialPrompt?: string, persona: PersonaType = 'default') => {
     const newId = generateId();
@@ -99,12 +106,15 @@ export const useChat = () => {
         content: msg.content
       }));
 
+      // Feature 10: Smart Replies Prompt Injection
+      const SMART_REPLY_INSTRUCTION = `\n\n[SYSTEM INSTRUCTION: Please provide 3 short, predictive follow-up questions the user might ask next based on your response. Output them at the VERY END of your response EXACTLY in this format: <suggested_replies>["Question 1", "Question 2", "Question 3"]</suggested_replies>]`;
+
       let response;
 
       if (imageFile) {
         // Handle Vision API (multipart/form-data)
         const formData = new FormData();
-        formData.append('message', userMsg.content || 'Analyze this image');
+        formData.append('message', (userMsg.content || 'Analyze this image') + SMART_REPLY_INSTRUCTION);
         formData.append('conversationHistory', JSON.stringify(conversationHistory));
         formData.append('persona', currentChat.persona);
         formData.append('model', settings.model);
@@ -123,7 +133,7 @@ export const useChat = () => {
       } else {
         // Handle Standard Text API (application/json)
         response = await axios.post(`${API_BASE_URL}/api/chat`, {
-          message: userMsg.content,
+          message: userMsg.content + SMART_REPLY_INSTRUCTION,
           conversationHistory,
           persona: currentChat.persona,
           model: settings.model,
@@ -134,11 +144,25 @@ export const useChat = () => {
       }
 
       if (response.data && response.data.success) {
+        let rawContent = response.data.response;
+        let suggestedReplies: string[] | undefined = undefined;
+        
+        try {
+          const match = rawContent.match(/<suggested_replies>(.*?)<\/suggested_replies>/s);
+          if (match) {
+            suggestedReplies = JSON.parse(match[1]);
+            rawContent = rawContent.replace(match[0], '').trim();
+          }
+        } catch (e) {
+          console.error("Failed to parse suggested replies", e);
+        }
+
         const assistantMsg: Message = {
           id: generateId(),
           role: 'model',
-          content: response.data.response,
-          timestamp: Date.now()
+          content: rawContent,
+          timestamp: Date.now(),
+          suggestedReplies
         };
 
         // Determine title (auto update if it is the first user message)

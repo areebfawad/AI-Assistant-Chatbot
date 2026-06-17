@@ -26,7 +26,7 @@ router.post(
         message,
         conversationHistory: historyStr = '[]',
         persona = 'default',
-        model = 'gemini-2.5-flash',
+        model = 'gemini-1.5-flash',
         temperature: tempStr = '0.7',
         apiKey
       } = req.body;

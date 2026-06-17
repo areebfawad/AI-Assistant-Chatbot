@@ -6,6 +6,7 @@ export interface Message {
   imageUrl?: string;
   isPinned?: boolean;
   rating?: -1 | 0 | 1;
+  suggestedReplies?: string[];
 }
 
 export type PersonaType = 'default' | 'code' | 'creative' | 'analyst';
@@ -31,6 +32,8 @@ export interface Settings {
   model: 'gemini-1.5-flash' | 'gemini-1.5-pro' | string;
   maxTokens: number;
   temperature: number;
+  accentColor?: string;
+  fontFamily?: string;
 }
 
 export type ThemeMode = 'dark' | 'light';

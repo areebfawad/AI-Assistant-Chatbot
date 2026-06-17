@@ -121,6 +121,34 @@ export const App: React.FC = () => {
     }
   }, [theme]);
 
+  // Apply Advanced Theming (Feature 8)
+  useEffect(() => {
+    const root = document.documentElement;
+    
+    // Apply Font Family
+    const fontMap: Record<string, string> = {
+      'inter': "'Inter', sans-serif",
+      'outfit': "'Outfit', sans-serif",
+      'roboto': "'Roboto', sans-serif",
+      'fira-code': "'Fira Code', monospace"
+    };
+    root.style.setProperty('font-family', fontMap[settings.fontFamily || 'inter'] || fontMap['inter']);
+    
+    // Apply Accent Color
+    const colorMap: Record<string, { primary: string, secondary: string }> = {
+      'violet': { primary: '108, 99, 255', secondary: '0, 212, 255' },
+      'emerald': { primary: '16, 185, 129', secondary: '52, 211, 153' },
+      'blue': { primary: '59, 130, 246', secondary: '96, 165, 250' },
+      'rose': { primary: '244, 63, 94', secondary: '251, 113, 133' },
+      'amber': { primary: '245, 158, 11', secondary: '251, 191, 36' }
+    };
+    
+    const themeColors = colorMap[settings.accentColor || 'violet'] || colorMap['violet'];
+    root.style.setProperty('--color-primary', themeColors.primary);
+    root.style.setProperty('--color-secondary', themeColors.secondary);
+    
+  }, [settings.accentColor, settings.fontFamily]);
+
   // Keyboard shortcut listener for Ctrl+K (Open Search Overlay)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -157,9 +185,11 @@ export const App: React.FC = () => {
   const handleResetSettings = () => {
     const defaultSettings: Settings = {
       apiKey: '',
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       maxTokens: 2048,
-      temperature: 0.7
+      temperature: 0.7,
+      accentColor: 'violet',
+      fontFamily: 'inter'
     };
     setSettings(defaultSettings);
   };

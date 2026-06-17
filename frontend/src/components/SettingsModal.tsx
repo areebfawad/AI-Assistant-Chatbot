@@ -124,13 +124,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   value={localSettings.model}
                   onChange={(e) => setLocalSettings(prev => ({ ...prev, model: e.target.value }))}
                   className="w-full bg-[#0A0A0F]/60 border border-brand-border rounded-xl py-2 px-3 text-sm text-brand-text outline-none focus:border-brand-primary/50 cursor-pointer"
-                >
-                  <option value="gemini-3.5-flash" className="bg-brand-card">gemini-3.5-flash (Next-Gen Flash)</option>
-                  <option value="gemini-2.5-flash" className="bg-brand-card">gemini-2.5-flash (Fast & lightweight)</option>
-                  <option value="gemini-2.5-pro" className="bg-brand-card">gemini-2.5-pro (Highly complex reasoning)</option>
-                  <option value="gemini-2.0-flash" className="bg-brand-card">gemini-2.0-flash (Low latency)</option>
-                  <option value="gemini-1.5-flash" className="bg-brand-card">gemini-1.5-flash (Legacy Flash)</option>
-                  <option value="gemini-1.5-pro" className="bg-brand-card">gemini-1.5-pro (Legacy Pro)</option>
+                  <option value="gemini-2.0-flash-exp" className="bg-brand-card">gemini-2.0-flash-exp (Experimental)</option>
+                  <option value="gemini-1.5-flash" className="bg-brand-card">gemini-1.5-flash (Fast & lightweight)</option>
+                  <option value="gemini-1.5-pro" className="bg-brand-card">gemini-1.5-pro (Highly complex reasoning)</option>
                 </select>
               </div>
 
@@ -196,6 +192,53 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="flex justify-between text-[9px] text-brand-muted select-none">
                   <span>256 Tokens (Short)</span>
                   <span>8192 Tokens (Verbose)</span>
+                </div>
+              </div>
+
+              {/* Visual Theming (Feature 8) */}
+              <div className="pt-4 border-t border-brand-border/40 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-brand-muted block">
+                    Accent Color
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    {[
+                      { id: 'violet', hex: '#6C63FF' },
+                      { id: 'emerald', hex: '#10B981' },
+                      { id: 'blue', hex: '#3B82F6' },
+                      { id: 'rose', hex: '#F43F5E' },
+                      { id: 'amber', hex: '#F59E0B' }
+                    ].map((color) => (
+                      <button
+                        key={color.id}
+                        type="button"
+                        onClick={() => setLocalSettings(prev => ({ ...prev, accentColor: color.id }))}
+                        className={`w-6 h-6 rounded-full border-2 transition-all duration-200 ${
+                          (localSettings.accentColor || 'violet') === color.id 
+                            ? 'border-white scale-110 shadow-glow' 
+                            : 'border-transparent hover:scale-110 opacity-70 hover:opacity-100'
+                        }`}
+                        style={{ backgroundColor: color.hex }}
+                        title={color.id.charAt(0).toUpperCase() + color.id.slice(1)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-brand-muted block">
+                    Typography
+                  </label>
+                  <select
+                    value={localSettings.fontFamily || 'inter'}
+                    onChange={(e) => setLocalSettings(prev => ({ ...prev, fontFamily: e.target.value }))}
+                    className="w-full bg-[#0A0A0F]/60 border border-brand-border rounded-xl py-2 px-3 text-sm text-brand-text outline-none focus:border-brand-primary/50 cursor-pointer"
+                  >
+                    <option value="inter" className="bg-brand-card font-sans">Inter (Modern & Clean)</option>
+                    <option value="outfit" className="bg-brand-card font-sans" style={{ fontFamily: 'Outfit' }}>Outfit (Geometric & Round)</option>
+                    <option value="roboto" className="bg-brand-card font-sans" style={{ fontFamily: 'Roboto' }}>Roboto (Classic & Readable)</option>
+                    <option value="fira-code" className="bg-brand-card font-mono" style={{ fontFamily: 'Fira Code' }}>Fira Code (Developer / Monospace)</option>
+                  </select>
                 </div>
               </div>
 

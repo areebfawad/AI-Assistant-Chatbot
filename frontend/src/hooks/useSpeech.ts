@@ -104,6 +104,8 @@ export const useSpeech = (onTranscriptChange?: (text: string) => void) => {
         console.error('[SpeechRecognition Error]:', event);
         if (event.error === 'not-allowed') {
           toast.error('Microphone permission denied.');
+        } else if (event.error === 'no-speech' || event.error === 'aborted') {
+          // Suppress harmless 'no-speech' or 'aborted' background errors to prevent UI spam
         } else {
           toast.error(`Voice input error: ${event.error}`);
         }

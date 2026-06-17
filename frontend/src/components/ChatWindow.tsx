@@ -4,6 +4,7 @@ import { Conversation } from '../types';
 import { MessageBubble } from './MessageBubble';
 import { TypingIndicator } from './TypingIndicator';
 import { WelcomeScreen } from './WelcomeScreen';
+import { SmartReplies } from './SmartReplies';
 
 interface ChatWindowProps {
   activeConversation: Conversation | null;
@@ -72,6 +73,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               />
             ))}
           </AnimatePresence>
+
+          {/* Feature 10: Smart Replies */}
+          {hasMessages && 
+           !isLoading &&
+           activeConversation.messages[activeConversation.messages.length - 1].role === 'model' && 
+           activeConversation.messages[activeConversation.messages.length - 1].suggestedReplies && (
+             <SmartReplies 
+               replies={activeConversation.messages[activeConversation.messages.length - 1].suggestedReplies!} 
+               onSelect={onSelectPrompt} 
+             />
+          )}
 
           {/* Typing Indicator */}
           <AnimatePresence>

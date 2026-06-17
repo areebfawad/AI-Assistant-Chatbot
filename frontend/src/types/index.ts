@@ -3,6 +3,9 @@ export interface Message {
   role: 'user' | 'model';
   content: string;
   timestamp: number;
+  imageUrl?: string;
+  isPinned?: boolean;
+  rating?: -1 | 0 | 1;
 }
 
 export type PersonaType = 'default' | 'code' | 'creative' | 'analyst';

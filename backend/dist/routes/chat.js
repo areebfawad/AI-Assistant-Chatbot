@@ -18,7 +18,7 @@ router.get('/health', (_req, res) => {
 // Chat Endpoint with Rate Limiting
 router.post('/chat', rateLimiter_1.chatRateLimiter, async (req, res, next) => {
     try {
-        const { message, conversationHistory = [], persona = 'default', model = 'gemini-1.5-flash', temperature = 0.7, maxTokens, apiKey } = req.body;
+        const { message, conversationHistory = [], persona = 'default', model = 'gemini-2.5-flash', temperature = 0.7, maxTokens, apiKey } = req.body;
         // Validation
         if (!message || typeof message !== 'string') {
             res.status(400).json({

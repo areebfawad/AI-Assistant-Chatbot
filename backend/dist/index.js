@@ -8,6 +8,7 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const chat_1 = __importDefault(require("./routes/chat"));
+const vision_1 = __importDefault(require("./routes/vision"));
 const errorHandler_1 = __importDefault(require("./middleware/errorHandler"));
 // Load Environment Variables
 dotenv_1.default.config();
@@ -38,13 +39,15 @@ app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 // API Routes
 app.use('/api', chat_1.default);
+app.use('/api', vision_1.default);
 // Root Route Redirect/Notice
 app.get('/', (_req, res) => {
     res.status(200).json({
         message: 'Welcome to the NexusAI Chatbot Server API',
         endpoints: {
             health: '/api/health',
-            chat: '/api/chat (POST)'
+            chat: '/api/chat (POST)',
+            vision: '/api/chat/vision (POST)'
         }
     });
 });

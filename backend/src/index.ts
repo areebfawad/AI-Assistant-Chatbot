@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import chatRouter from './routes/chat';
+import visionRouter from './routes/vision';
 import errorHandler from './middleware/errorHandler';
 
 // Load Environment Variables
@@ -41,6 +42,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API Routes
 app.use('/api', chatRouter);
+app.use('/api', visionRouter);
 
 // Root Route Redirect/Notice
 app.get('/', (_req, res) => {
@@ -48,7 +50,8 @@ app.get('/', (_req, res) => {
     message: 'Welcome to the NexusAI Chatbot Server API',
     endpoints: {
       health: '/api/health',
-      chat: '/api/chat (POST)'
+      chat: '/api/chat (POST)',
+      vision: '/api/chat/vision (POST)'
     }
   });
 });

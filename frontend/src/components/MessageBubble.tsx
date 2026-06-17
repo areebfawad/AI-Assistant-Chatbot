@@ -1,12 +1,25 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
-import { Copy, Check, Sparkles, User, Terminal } from 'lucide-react';
+import { Copy, Check, Sparkles, User, Terminal, Volume2, VolumeX, ThumbsUp, ThumbsDown, Edit2, Trash2, RotateCw, Pin, PinOff } from 'lucide-react';
 import { Message } from '../types';
 import { formatTimestamp } from '../utils/formatMessage';
 
 interface MessageBubbleProps {
   message: Message;
+  // Feature 1 additions
+  speakingMessageId: string | null;
+  speakingCharIndex: number;
+  onSpeak: (messageId: string, text: string) => void;
+  // Feature 2 additions
+  onImageClick?: (url: string) => void;
+  // Feature 3 additions
+  conversationId: string;
+  onPinToggle: (conversationId: string, messageId: string) => void;
+  onRate: (conversationId: string, messageId: string, rating: -1 | 0 | 1) => void;
+  onDelete: (conversationId: string, messageId: string) => void;
+  onEdit: (conversationId: string, messageId: string, newContent: string) => void;
+  onRegenerate: (conversationId: string, messageId: string) => void;
 }
 
 /**
@@ -60,9 +73,25 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
   );
 };
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({
+  message,
+  speakingMessageId,
+  speakingCharIndex,
+  onSpeak,
+  onImageClick,
+  conversationId,
+  onPinToggle,
+  onRate,
+  onDelete,
+  onEdit,
+  onRegenerate
+}) => {
   const [copiedBubble, setCopiedBubble] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(message.content);
+
   const isUser = message.role === 'user';
+  const isSpeaking = speakingMessageId === message.id;
 
   const handleCopyMessage = async () => {
     try {
@@ -74,8 +103,73 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
     }
   };
 
+  const handleSpeakClick = () => {
+    onSpeak(message.id, message.content);
+  };
+
+  const handleSaveEdit = () => {
+    if (editText.trim() && editText.trim() !== message.content) {
+      onEdit(conversationId, message.id, editText);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditText(message.content);
+    setIsEditing(false);
+  };
+
+  // Helper function to recursively traverse and apply word-highlighting inside Markdown
+  const highlightSpokenWords = (children: React.ReactNode, activeIndex: number): React.ReactNode => {
+    let charCounter = 0;
+    
+    const processNode = (node: React.ReactNode): React.ReactNode => {
+      if (typeof node === 'string') {
+        const nodeLength = node.length;
+        const startCounter = charCounter;
+        charCounter += nodeLength;
+        
+        // If the active index falls within this text node, highlight the word
+        if (activeIndex >= startCounter && activeIndex < charCounter) {
+          const localIndex = activeIndex - startCounter;
+          
+          // Find the bounds of the word around localIndex
+          let start = localIndex;
+          while (start > 0 && /\w/.test(node[start - 1])) {
+            start--;
+          }
+          let end = localIndex;
+          while (end < node.length && /\w/.test(node[end])) {
+            end++;
+          }
+          
+          return (
+            <>
+              {node.slice(0, start)}
+              <span className="bg-brand-primary/30 text-brand-secondary font-semibold border-b border-brand-secondary border-dashed px-0.5 rounded transition-all duration-150">
+                {node.slice(start, end)}
+              </span>
+              {node.slice(end)}
+            </>
+          );
+        }
+        return node;
+      }
+      
+      if (React.isValidElement(node) && node.props && node.props.children) {
+        const newChildren = React.Children.map(node.props.children, child => processNode(child));
+        return React.cloneElement(node, { ...node.props }, newChildren);
+      }
+      
+      return node;
+    };
+
+    return React.Children.map(children, child => processNode(child));
+  };
+
   return (
     <motion.div
+      id={`msg-${message.id}`}
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
@@ -95,7 +189,29 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
       </div>
 
       {/* Bubble Content Area */}
-      <div className="relative flex flex-col">
+      <div className="relative flex flex-col min-w-[150px]">
+        {/* Rating or Pin badges when selected */}
+        <div className="absolute -top-2 right-12 flex items-center space-x-1 z-10 select-none">
+          {message.isPinned && (
+            <span className="bg-brand-primary/20 text-brand-secondary border border-brand-primary/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center space-x-0.5 shadow-sm">
+              <Pin className="h-2.5 w-2.5 fill-current" />
+              <span>Pinned</span>
+            </span>
+          )}
+          {message.rating === 1 && (
+            <span className="bg-brand-success/15 text-brand-success border border-brand-success/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center space-x-0.5 shadow-sm">
+              <ThumbsUp className="h-2.5 w-2.5 fill-current" />
+              <span>Helpful</span>
+            </span>
+          )}
+          {message.rating === -1 && (
+            <span className="bg-brand-error/15 text-brand-error border border-brand-error/30 text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center space-x-0.5 shadow-sm">
+              <ThumbsDown className="h-2.5 w-2.5 fill-current" />
+              <span>Low Quality</span>
+            </span>
+          )}
+        </div>
+
         <div
           className={`px-4 py-3 rounded-2xl shadow-sm transition-all duration-300 ${
             isUser
@@ -103,35 +219,174 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
               : 'bg-brand-card/90 border border-brand-border/60 text-brand-text rounded-tl-sm'
           }`}
         >
-          {/* Custom Copy Icon Button (overlay on hover) */}
-          <button
-            onClick={handleCopyMessage}
-            className={`absolute -top-1.5 ${
-              isUser ? '-left-2' : '-right-2'
-            } p-1.5 rounded-lg border border-brand-border/80 bg-brand-card text-brand-muted hover:text-brand-text opacity-0 group-hover:opacity-100 shadow-md transition-all duration-200 z-10`}
-            title="Copy entire message"
-          >
-            {copiedBubble ? (
-              <Check className="h-3 w-3 text-brand-success" />
-            ) : (
-              <Copy className="h-3 w-3" />
-            )}
-          </button>
+          {/* Custom Action Button Toolbar (overlay on hover, hidden when editing) */}
+          {!isEditing && (
+            <div
+              className={`absolute -top-2.5 ${
+                isUser ? '-left-2' : '-right-2'
+              } flex items-center space-x-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 shadow-md transition-all duration-200 z-10`}
+            >
+              {!isUser && (
+                <>
+                  {/* Read Aloud */}
+                  <button
+                    onClick={handleSpeakClick}
+                    className="p-1.5 rounded-lg border border-brand-border bg-brand-card text-brand-muted hover:text-brand-text transition-colors"
+                    title={isSpeaking ? 'Stop Reading' : 'Read Aloud'}
+                  >
+                    {isSpeaking ? (
+                      <VolumeX className="h-3.5 w-3.5 text-brand-error animate-pulse" />
+                    ) : (
+                      <Volume2 className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                  
+                  {/* Pin/Unpin */}
+                  <button
+                    onClick={() => onPinToggle(conversationId, message.id)}
+                    className={`p-1.5 rounded-lg border border-brand-border bg-brand-card transition-colors ${
+                      message.isPinned ? 'text-brand-secondary border-brand-secondary/30 bg-brand-secondary/5' : 'text-brand-muted hover:text-brand-text'
+                    }`}
+                    title={message.isPinned ? 'Unpin message' : 'Pin message'}
+                  >
+                    {message.isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                  </button>
 
-          {/* Text Parsing */}
-          {isUser ? (
-            <p className="text-sm md:text-base whitespace-pre-wrap leading-relaxed break-words">
-              {message.content}
-            </p>
+                  {/* Thumbs Up */}
+                  <button
+                    onClick={() => onRate(conversationId, message.id, 1)}
+                    className={`p-1.5 rounded-lg border border-brand-border bg-brand-card transition-colors ${
+                      message.rating === 1 ? 'text-brand-success border-brand-success/30 bg-brand-success/5 shadow-sm' : 'text-brand-muted hover:text-brand-text'
+                    }`}
+                    title="Thumbs up"
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Thumbs Down */}
+                  <button
+                    onClick={() => onRate(conversationId, message.id, -1)}
+                    className={`p-1.5 rounded-lg border border-brand-border bg-brand-card transition-colors ${
+                      message.rating === -1 ? 'text-brand-error border-brand-error/30 bg-brand-error/5 shadow-sm' : 'text-brand-muted hover:text-brand-text'
+                    }`}
+                    title="Thumbs down"
+                  >
+                    <ThumbsDown className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Regenerate Response */}
+                  <button
+                    onClick={() => onRegenerate(conversationId, message.id)}
+                    className="p-1.5 rounded-lg border border-brand-border bg-brand-card text-brand-muted hover:text-brand-text transition-colors"
+                    title="Regenerate response"
+                  >
+                    <RotateCw className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
+
+              {isUser && (
+                /* Edit button for User Messages */
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="p-1.5 rounded-lg border border-brand-border bg-brand-card text-brand-muted hover:text-brand-text transition-colors"
+                  title="Edit message"
+                >
+                  <Edit2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+
+              {/* Copy Bubble Text */}
+              <button
+                onClick={handleCopyMessage}
+                className="p-1.5 rounded-lg border border-brand-border bg-brand-card text-brand-muted hover:text-brand-text transition-colors"
+                title="Copy text"
+              >
+                {copiedBubble ? (
+                  <Check className="h-3.5 w-3.5 text-brand-success" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
+
+              {/* Delete Message */}
+              <button
+                onClick={() => onDelete(conversationId, message.id)}
+                className="p-1.5 rounded-lg border border-brand-border bg-brand-card text-brand-muted hover:text-brand-error transition-colors"
+                title="Delete message"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Render Text Content (or Input field when isEditing is active) */}
+          {isEditing ? (
+            <div className="flex flex-col space-y-2 py-1 min-w-[200px] md:min-w-[320px]">
+              <textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                className="w-full bg-[#0A0A0F]/60 border border-brand-border focus:border-brand-primary/50 text-white rounded-xl p-2.5 text-sm outline-none resize-y min-h-[80px] leading-relaxed"
+                placeholder="Edit your message..."
+              />
+              <div className="flex items-center justify-end space-x-2">
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-2.5 py-1.5 text-xs text-brand-text/80 hover:bg-brand-border/40 rounded-lg transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="px-3 py-1.5 text-xs font-semibold bg-gradient-accent text-white rounded-lg hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                >
+                  Save & Resend
+                </button>
+              </div>
+            </div>
+          ) : isUser ? (
+            <div className="flex flex-col space-y-2">
+              {message.imageUrl && (
+                <div className="rounded-xl overflow-hidden border border-white/20 shadow-sm cursor-zoom-in hover:opacity-90 active:scale-98 transition-all max-w-[240px]">
+                  <img
+                    src={message.imageUrl}
+                    alt="Uploaded attachment"
+                    className="max-h-[180px] w-full object-cover"
+                    onClick={() => onImageClick && onImageClick(message.imageUrl!)}
+                  />
+                </div>
+              )}
+              {message.content && (
+                <p className="text-sm md:text-base whitespace-pre-wrap leading-relaxed break-words">
+                  {message.content}
+                </p>
+              )}
+            </div>
           ) : (
             <div className="markdown-content text-sm md:text-base break-words">
               <ReactMarkdown
                 components={{
+                  // Highlight spoken text for standard paragraph nodes
+                  p({ children, ...props }) {
+                    return (
+                      <p {...props}>
+                        {isSpeaking ? highlightSpokenWords(children, speakingCharIndex) : children}
+                      </p>
+                    );
+                  },
+                  // Highlight spoken text for list item nodes
+                  li({ children, ...props }) {
+                    return (
+                      <li {...props}>
+                        {isSpeaking ? highlightSpokenWords(children, speakingCharIndex) : children}
+                      </li>
+                    );
+                  },
                   // Capture code blocks and render using our premium CodeBlock component
                   code({ className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || '');
                     const codeString = String(children).replace(/\n$/, '');
-                    const isInline = !match;
+                    const isInline = match ? false : true;
 
                     if (!isInline) {
                       return <CodeBlock language={match ? match[1] : 'code'} code={codeString} />;

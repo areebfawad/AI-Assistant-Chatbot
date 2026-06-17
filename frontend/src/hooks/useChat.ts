@@ -16,7 +16,7 @@ const generateId = (): string => {
 
 const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.5-flash',
   maxTokens: 2048,
   temperature: 0.7,
 };
@@ -46,15 +46,18 @@ export const useChat = () => {
     setSelectedPersona(persona);
 
     if (initialPrompt) {
-      // We will handle sending the initial prompt by returning the new ID 
-      // so the caller can trigger sendMessage on that chat ID
       return { id: newId, prompt: initialPrompt };
     }
     return { id: newId };
   }, [setConversations, setActiveConversationId, setSelectedPersona]);
 
   // Send message
-  const sendMessage = useCallback(async (content: string, overrideChatId?: string) => {
+  const sendMessage = useCallback(async (
+    content: string,
+    overrideChatId?: string,
+    imageFile?: File | null,
+    imageBase64?: string | null
+  ) => {
     const targetChatId = overrideChatId || activeConversationId;
     let currentChat = conversations.find(c => c.id === targetChatId);
 
@@ -74,7 +77,8 @@ export const useChat = () => {
       id: generateId(),
       role: 'user',
       content: content.trim(),
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      imageUrl: imageBase64 || undefined
     };
 
     // Update conversation local state with User message immediately
@@ -95,16 +99,39 @@ export const useChat = () => {
         content: msg.content
       }));
 
-      // Make API Request to backend
-      const response = await axios.post(`${API_BASE_URL}/api/chat`, {
-        message: userMsg.content,
-        conversationHistory,
-        persona: currentChat.persona,
-        model: settings.model,
-        temperature: settings.temperature,
-        maxTokens: settings.maxTokens > 0 ? settings.maxTokens : undefined,
-        apiKey: settings.apiKey.trim() || undefined
-      });
+      let response;
+
+      if (imageFile) {
+        // Handle Vision API (multipart/form-data)
+        const formData = new FormData();
+        formData.append('message', userMsg.content || 'Analyze this image');
+        formData.append('conversationHistory', JSON.stringify(conversationHistory));
+        formData.append('persona', currentChat.persona);
+        formData.append('model', settings.model);
+        formData.append('temperature', settings.temperature.toString());
+        formData.append('image', imageFile);
+
+        if (settings.apiKey.trim()) {
+          formData.append('apiKey', settings.apiKey.trim());
+        }
+
+        response = await axios.post(`${API_BASE_URL}/api/chat/vision`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      } else {
+        // Handle Standard Text API (application/json)
+        response = await axios.post(`${API_BASE_URL}/api/chat`, {
+          message: userMsg.content,
+          conversationHistory,
+          persona: currentChat.persona,
+          model: settings.model,
+          temperature: settings.temperature,
+          maxTokens: settings.maxTokens > 0 ? settings.maxTokens : undefined,
+          apiKey: settings.apiKey.trim() || undefined
+        });
+      }
 
       if (response.data && response.data.success) {
         const assistantMsg: Message = {
@@ -116,7 +143,9 @@ export const useChat = () => {
 
         // Determine title (auto update if it is the first user message)
         const isFirstMessage = currentChat.messages.length === 0;
-        const finalTitle = isFirstMessage ? getAutoTitle(content) : currentChat.title;
+        const finalTitle = isFirstMessage 
+          ? getAutoTitle(content || 'Image Upload') 
+          : currentChat.title;
 
         const finalChat: Conversation = {
           ...updatedChat,
@@ -126,7 +155,6 @@ export const useChat = () => {
         };
 
         setConversations(prev => {
-          // Put the active conversation at the top of the sidebar list
           const filtered = prev.filter(c => c.id !== finalChat.id);
           return [finalChat, ...filtered];
         });
@@ -137,9 +165,6 @@ export const useChat = () => {
       console.error('[sendMessage Error]:', error);
       const errorMsg = error.response?.data?.error || error.message || 'Error connecting to the NexusAI Server.';
       toast.error(errorMsg, { duration: 5000 });
-      
-      // Remove the user's message from history if the request failed to keep history clean (optional, but let's keep user prompt but flag error)
-      // For premium UI, we keep the user message but don't add the model message.
     } finally {
       setIsLoading(false);
     }
@@ -200,6 +225,189 @@ export const useChat = () => {
     setSelectedPersona(persona);
   }, [setConversations, setSelectedPersona]);
 
+  // FEATURE 3 handlers
+
+  // Toggle Pin/Unpin on a message
+  const togglePinMessage = useCallback((conversationId: string, messageId: string) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id === conversationId) {
+        const isCurrentlyPinned = c.messages.find(m => m.id === messageId)?.isPinned;
+        toast.success(isCurrentlyPinned ? 'Message unpinned.' : 'Message pinned.');
+        return {
+          ...c,
+          messages: c.messages.map(m => m.id === messageId ? { ...m, isPinned: !m.isPinned } : m)
+        };
+      }
+      return c;
+    }));
+  }, [setConversations]);
+
+  // Thumbs Up/Down rating for AI answers
+  const rateMessage = useCallback((conversationId: string, messageId: string, rating: -1 | 0 | 1) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id === conversationId) {
+        return {
+          ...c,
+          messages: c.messages.map(m => {
+            if (m.id === messageId) {
+              const currentRating = m.rating === rating ? 0 : rating;
+              if (currentRating === 1) toast.success('Feedback recorded: Helpful response!', { id: 'feedback-ok' });
+              if (currentRating === -1) toast.success('Feedback recorded: Unhelpful response.', { id: 'feedback-bad' });
+              return { ...m, rating: currentRating };
+            }
+            return m;
+          })
+        };
+      }
+      return c;
+    }));
+  }, [setConversations]);
+
+  // Delete message from conversation history
+  const deleteMessage = useCallback((conversationId: string, messageId: string) => {
+    setConversations(prev => prev.map(c => {
+      if (c.id === conversationId) {
+        toast.success('Message deleted.');
+        return {
+          ...c,
+          messages: c.messages.filter(m => m.id !== messageId)
+        };
+      }
+      return c;
+    }));
+  }, [setConversations]);
+
+  // Edit user message and resend from that point (history branches)
+  const editMessage = useCallback(async (conversationId: string, messageId: string, newContent: string) => {
+    const chat = conversations.find(c => c.id === conversationId);
+    if (!chat) return;
+
+    const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+    if (msgIndex === -1) return;
+
+    // Keep preceding history, modify the user message, and discard later diverged messages
+    const truncatedHistory = chat.messages.slice(0, msgIndex);
+    const editedMsg: Message = {
+      ...chat.messages[msgIndex],
+      content: newContent.trim(),
+      timestamp: Date.now()
+    };
+
+    const updatedChat = {
+      ...chat,
+      messages: [...truncatedHistory, editedMsg],
+      timestamp: Date.now()
+    };
+
+    setConversations(prev => prev.map(c => c.id === conversationId ? updatedChat : c));
+    setActiveConversationId(conversationId);
+    setIsLoading(true);
+
+    try {
+      const conversationHistory = truncatedHistory.map(m => ({ role: m.role, content: m.content }));
+      
+      const response = await axios.post(`${API_BASE_URL}/api/chat`, {
+        message: editedMsg.content,
+        conversationHistory,
+        persona: chat.persona,
+        model: settings.model,
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens > 0 ? settings.maxTokens : undefined,
+        apiKey: settings.apiKey.trim() || undefined
+      });
+
+      if (response.data && response.data.success) {
+        const assistantMsg: Message = {
+          id: generateId(),
+          role: 'model',
+          content: response.data.response,
+          timestamp: Date.now()
+        };
+
+        const finalChat = {
+          ...updatedChat,
+          messages: [...updatedChat.messages, assistantMsg],
+          timestamp: Date.now()
+        };
+
+        setConversations(prev => prev.map(c => c.id === conversationId ? finalChat : c));
+      } else {
+        throw new Error(response.data.error || 'Failed to generate response');
+      }
+    } catch (error: any) {
+      console.error('[editMessage Error]:', error);
+      toast.error(error.response?.data?.error || error.message || 'Error updating message.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [conversations, settings, setActiveConversationId, setConversations]);
+
+  // Resend user prompt to regenerate AI response
+  const regenerateMessage = useCallback(async (conversationId: string, messageId: string) => {
+    const chat = conversations.find(c => c.id === conversationId);
+    if (!chat) return;
+
+    const aiMsgIndex = chat.messages.findIndex(m => m.id === messageId);
+    if (aiMsgIndex === -1) return;
+
+    const userMsgIndex = aiMsgIndex - 1;
+    if (userMsgIndex < 0 || chat.messages[userMsgIndex].role !== 'user') {
+      toast.error('Preceding user message not found to regenerate.');
+      return;
+    }
+
+    const userPrompt = chat.messages[userMsgIndex].content;
+    const truncatedHistory = chat.messages.slice(0, userMsgIndex);
+
+    const updatedChat = {
+      ...chat,
+      messages: [...truncatedHistory, chat.messages[userMsgIndex]],
+      timestamp: Date.now()
+    };
+
+    setConversations(prev => prev.map(c => c.id === conversationId ? updatedChat : c));
+    setActiveConversationId(conversationId);
+    setIsLoading(true);
+
+    try {
+      const conversationHistory = truncatedHistory.map(m => ({ role: m.role, content: m.content }));
+      
+      const response = await axios.post(`${API_BASE_URL}/api/chat`, {
+        message: userPrompt,
+        conversationHistory,
+        persona: chat.persona,
+        model: settings.model,
+        temperature: settings.temperature,
+        maxTokens: settings.maxTokens > 0 ? settings.maxTokens : undefined,
+        apiKey: settings.apiKey.trim() || undefined
+      });
+
+      if (response.data && response.data.success) {
+        const assistantMsg: Message = {
+          id: generateId(),
+          role: 'model',
+          content: response.data.response,
+          timestamp: Date.now()
+        };
+
+        const finalChat = {
+          ...updatedChat,
+          messages: [...updatedChat.messages, assistantMsg],
+          timestamp: Date.now()
+        };
+
+        setConversations(prev => prev.map(c => c.id === conversationId ? finalChat : c));
+      } else {
+        throw new Error(response.data.error || 'Failed to regenerate response');
+      }
+    } catch (error: any) {
+      console.error('[regenerateMessage Error]:', error);
+      toast.error(error.response?.data?.error || error.message || 'Error regenerating response.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [conversations, settings, setActiveConversationId, setConversations]);
+
   return {
     conversations,
     activeConversation,
@@ -226,6 +434,13 @@ export const useChat = () => {
     deleteConversation,
     clearAllConversations,
     exportConversation,
-    setConversations
+    setConversations,
+    // FEATURE 3 Exports
+    togglePinMessage,
+    rateMessage,
+    deleteMessage,
+    editMessage,
+    regenerateMessage
   };
 };
+export default useChat;

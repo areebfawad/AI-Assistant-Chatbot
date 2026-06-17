@@ -1,5 +1,5 @@
 import React from 'react';
-import { Menu, Settings, Sun, Moon, Sparkles, MessageSquare } from 'lucide-react';
+import { Menu, Settings, Sun, Moon, Sparkles, MessageSquare, Bookmark, Search } from 'lucide-react';
 import { Conversation, ThemeMode } from '../types';
 
 interface HeaderProps {
@@ -8,6 +8,11 @@ interface HeaderProps {
   toggleTheme: () => void;
   openSettings: () => void;
   toggleMobileSidebar: () => void;
+  // Feature 3 additions
+  totalPinnedCount: number;
+  onTogglePinnedPanel: () => void;
+  // Feature 4 additions
+  onToggleSearch: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,7 +20,10 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   toggleTheme,
   openSettings,
-  toggleMobileSidebar
+  toggleMobileSidebar,
+  totalPinnedCount,
+  onTogglePinnedPanel,
+  onToggleSearch
 }) => {
   const messageCount = activeConversation?.messages.length || 0;
 
@@ -63,6 +71,29 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right side: Control Buttons */}
       <div className="flex items-center space-x-1 md:space-x-2">
+        {/* Global Search trigger (Feature 4) */}
+        <button
+          onClick={onToggleSearch}
+          className="p-2 rounded-lg text-brand-text/70 hover:text-brand-text hover:bg-brand-border/40 transition-colors focus:outline-none"
+          title="Search Chats (Ctrl+K)"
+        >
+          <Search className="h-5 w-5" />
+        </button>
+
+        {/* Pinned Messages Trigger */}
+        <button
+          onClick={onTogglePinnedPanel}
+          className="relative p-2 rounded-lg text-brand-text/70 hover:text-brand-text hover:bg-brand-border/40 transition-colors focus:outline-none"
+          title="Pinned Messages"
+        >
+          <Bookmark className="h-5 w-5" />
+          {totalPinnedCount > 0 && (
+            <span className="absolute top-0 right-0 h-4 w-4 bg-brand-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-brand-card select-none">
+              {totalPinnedCount}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={toggleTheme}
           className="p-2 rounded-lg text-brand-text/70 hover:text-brand-text hover:bg-brand-border/40 transition-colors focus:outline-none"

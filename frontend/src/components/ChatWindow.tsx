@@ -9,12 +9,33 @@ interface ChatWindowProps {
   activeConversation: Conversation | null;
   isLoading: boolean;
   onSelectPrompt: (prompt: string) => void;
+  // Feature 1 additions
+  speakingMessageId: string | null;
+  speakingCharIndex: number;
+  onSpeak: (messageId: string, text: string) => void;
+  // Feature 2 additions
+  onImageClick?: (url: string) => void;
+  // Feature 3 additions
+  onPinToggle: (conversationId: string, messageId: string) => void;
+  onRate: (conversationId: string, messageId: string, rating: -1 | 0 | 1) => void;
+  onDelete: (conversationId: string, messageId: string) => void;
+  onEdit: (conversationId: string, messageId: string, newContent: string) => void;
+  onRegenerate: (conversationId: string, messageId: string) => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
   activeConversation,
   isLoading,
-  onSelectPrompt
+  onSelectPrompt,
+  speakingMessageId,
+  speakingCharIndex,
+  onSpeak,
+  onImageClick,
+  onPinToggle,
+  onRate,
+  onDelete,
+  onEdit,
+  onRegenerate
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +56,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <div className="max-w-4xl mx-auto space-y-4">
           <AnimatePresence initial={false}>
             {activeConversation.messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+              <MessageBubble
+                key={message.id}
+                message={message}
+                speakingMessageId={speakingMessageId}
+                speakingCharIndex={speakingCharIndex}
+                onSpeak={onSpeak}
+                onImageClick={onImageClick}
+                conversationId={activeConversation.id}
+                onPinToggle={onPinToggle}
+                onRate={onRate}
+                onDelete={onDelete}
+                onEdit={onEdit}
+                onRegenerate={onRegenerate}
+              />
             ))}
           </AnimatePresence>
 

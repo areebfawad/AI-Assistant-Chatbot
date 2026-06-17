@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, Download, MessageSquare, X, Trash } from 'lucide-react';
+import { Plus, Trash2, Download, MessageSquare, X, Trash, BarChart3 } from 'lucide-react';
 import { Conversation, PersonaType } from '../types';
 import { formatFullDate } from '../utils/formatMessage';
 
@@ -14,6 +14,7 @@ interface SidebarProps {
   clearAllConversations: () => void;
   isOpenMobile: boolean;
   setIsOpenMobile: (open: boolean) => void;
+  onOpenAnalytics: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,7 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   exportConversation,
   clearAllConversations,
   isOpenMobile,
-  setIsOpenMobile
+  setIsOpenMobile,
+  onOpenAnalytics
 }) => {
   const handleSelectChat = (id: string) => {
     setActiveConversationId(id);
@@ -134,8 +136,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Sidebar Footer */}
-      {conversations.length > 0 && (
-        <div className="p-4 border-t border-brand-border/40">
+      <div className="p-4 border-t border-brand-border/40 space-y-2 shrink-0">
+        <button
+          onClick={onOpenAnalytics}
+          className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg border border-brand-primary/30 text-brand-primary hover:text-white hover:bg-brand-primary/20 text-xs font-medium transition-all duration-200"
+        >
+          <BarChart3 className="h-4 w-4" />
+          <span>Analytics Dashboard</span>
+        </button>
+        {conversations.length > 0 && (
           <button
             onClick={clearAllConversations}
             className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-lg border border-brand-error/30 text-brand-error/80 hover:text-brand-error hover:bg-brand-error/5 text-xs font-medium transition-all duration-200"
@@ -143,8 +152,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Trash className="h-4 w-4" />
             <span>Clear All Chats</span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 

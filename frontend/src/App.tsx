@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { useChat } from './hooks/useChat';
 import { useSpeech } from './hooks/useSpeech';
 import { useImageUpload } from './hooks/useImageUpload';
 import { usePinnedMessages } from './hooks/usePinnedMessages';
 import { useSearch } from './hooks/useSearch';
+import { useDocumentUpload } from './hooks/useDocumentUpload';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
@@ -84,6 +85,21 @@ export const App: React.FC = () => {
   // Feature 5: Analytics Dashboard State
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
+  // Feature 6: Document Upload Hook
+  const {
+    attachedDocument,
+    isExtracting,
+    documentError,
+    handleDocumentSelect,
+    clearDocument
+  } = useDocumentUpload();
+
+  useEffect(() => {
+    if (documentError) {
+      toast.error(documentError);
+    }
+  }, [documentError]);
+
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const saved = localStorage.getItem('nexus_theme');
     return (saved as ThemeMode) || 'dark';
@@ -122,8 +138,15 @@ export const App: React.FC = () => {
   };
 
   const handleSendMessage = async (text: string) => {
-    await sendMessage(text, undefined, selectedFile, base64Data);
+    let finalPrompt = text;
+    
+    if (attachedDocument) {
+      finalPrompt = `[Attached Document: ${attachedDocument.name}]\n\n${attachedDocument.extractedText}\n\n---\n\nUser Query: ${text || 'Please analyze this document.'}`;
+    }
+
+    await sendMessage(finalPrompt, undefined, selectedFile, base64Data);
     clearImage();
+    clearDocument();
   };
 
   const handleSaveSettings = (newSettings: Settings) => {
@@ -230,6 +253,10 @@ export const App: React.FC = () => {
           previewUrl={previewUrl}
           onFileSelect={handleFileSelect}
           onClearImage={clearImage}
+          attachedDocumentName={attachedDocument?.name}
+          isExtractingDocument={isExtracting}
+          onDocumentSelect={handleDocumentSelect}
+          onClearDocument={clearDocument}
         />
       </div>
 

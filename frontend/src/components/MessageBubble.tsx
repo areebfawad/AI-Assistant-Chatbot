@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
-import { Copy, Check, Sparkles, User, Terminal, Volume2, VolumeX, ThumbsUp, ThumbsDown, Edit2, Trash2, RotateCw, Pin, PinOff } from 'lucide-react';
+import { Copy, Check, Sparkles, User, Terminal, Volume2, VolumeX, ThumbsUp, ThumbsDown, Edit2, Trash2, RotateCw, Pin, PinOff, Play } from 'lucide-react';
 import { Message } from '../types';
 import { formatTimestamp } from '../utils/formatMessage';
 
@@ -27,6 +27,10 @@ interface MessageBubbleProps {
  */
 const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, code }) => {
   const [copied, setCopied] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [output, setOutput] = useState<{type: 'log' | 'error', text: string}[]>([]);
+
+  const isExecutable = ['javascript', 'js'].includes(language.toLowerCase());
 
   const handleCopy = async () => {
     try {
@@ -38,37 +42,162 @@ const CodeBlock: React.FC<{ language: string; code: string }> = ({ language, cod
     }
   };
 
+  const handleRun = () => {
+    setIsRunning(true);
+    setOutput([]);
+    
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.sandbox.add('allow-scripts'); // Strict sandbox, no allow-same-origin
+    document.body.appendChild(iframe);
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const messageHandler = (e: MessageEvent) => {
+      if (e.source !== iframe.contentWindow) return;
+      if (e.data?.type === 'console') {
+        setOutput(prev => [...prev, { type: e.data.level, text: e.data.content }]);
+      } else if (e.data?.type === 'error') {
+        setOutput(prev => [...prev, { type: 'error', text: e.data.content }]);
+      } else if (e.data?.type === 'done') {
+        cleanup();
+      }
+    };
+    window.addEventListener('message', messageHandler);
+
+    const cleanup = () => {
+      setIsRunning(false);
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', messageHandler);
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    };
+
+    // Kill infinite loops after 3 seconds
+    timeoutId = setTimeout(() => {
+      setOutput(prev => [...prev, { type: 'error', text: 'Execution timed out (3000ms).' }]);
+      cleanup();
+    }, 3000);
+
+    const safeCode = code.replace(/<\/script>/gi, '<\\/script>');
+
+    const srcdoc = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <script>
+            // Intercept console messages
+            const originalLog = console.log;
+            const originalError = console.error;
+            const originalWarn = console.warn;
+            
+            console.log = (...args) => {
+              window.parent.postMessage({ type: 'console', level: 'log', content: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              originalLog(...args);
+            };
+            
+            console.error = (...args) => {
+              window.parent.postMessage({ type: 'console', level: 'error', content: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              originalError(...args);
+            };
+            
+            console.warn = (...args) => {
+              window.parent.postMessage({ type: 'console', level: 'log', content: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ') }, '*');
+              originalWarn(...args);
+            };
+
+            window.onerror = (message, source, lineno, colno, error) => {
+              window.parent.postMessage({ type: 'error', content: message }, '*');
+              return true;
+            };
+
+            // Async wrapper to support top-level await if needed
+            const run = async () => {
+              try {
+                ${safeCode}
+              } catch (err) {
+                window.parent.postMessage({ type: 'error', content: err.message }, '*');
+              } finally {
+                window.parent.postMessage({ type: 'done' }, '*');
+              }
+            };
+            
+            window.addEventListener('load', run);
+          </script>
+        </head>
+        <body></body>
+      </html>
+    `;
+
+    iframe.srcdoc = srcdoc;
+  };
+
   return (
-    <div className="my-4 overflow-hidden rounded-xl border border-brand-border bg-black/40 shadow-md">
+    <div className="my-4 overflow-hidden rounded-xl border border-brand-border bg-black/40 shadow-md flex flex-col">
       {/* Code Header Bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-brand-border bg-brand-card/90 select-none">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-brand-border bg-brand-card/90 select-none shrink-0">
         <div className="flex items-center space-x-2 text-brand-secondary">
           <Terminal className="h-4 w-4" />
           <span className="text-xs font-mono font-semibold uppercase tracking-wider text-brand-muted">
             {language}
           </span>
         </div>
-        <button
-          onClick={handleCopy}
-          className="flex items-center space-x-1.5 text-xs text-brand-muted hover:text-brand-text transition-colors bg-brand-border/20 hover:bg-brand-border/50 px-2 py-1 rounded-md"
-        >
-          {copied ? (
-            <>
-              <Check className="h-3 w-3 text-brand-success" />
-              <span className="text-brand-success font-medium">Copied!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3" />
-              <span>Copy</span>
-            </>
+        <div className="flex items-center space-x-2">
+          {isExecutable && (
+            <button
+              onClick={handleRun}
+              disabled={isRunning}
+              className="flex items-center space-x-1.5 text-xs text-brand-success hover:text-brand-success/80 transition-colors bg-brand-success/10 hover:bg-brand-success/20 px-2 py-1 rounded-md disabled:opacity-50"
+            >
+              {isRunning ? (
+                <div className="h-3 w-3 animate-spin rounded-full border-2 border-brand-success border-t-transparent" />
+              ) : (
+                <Play className="h-3 w-3" />
+              )}
+              <span>{isRunning ? 'Running...' : 'Run Code'}</span>
+            </button>
           )}
-        </button>
+          <button
+            onClick={handleCopy}
+            className="flex items-center space-x-1.5 text-xs text-brand-muted hover:text-brand-text transition-colors bg-brand-border/20 hover:bg-brand-border/50 px-2 py-1 rounded-md"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-brand-success" />
+                <span className="text-brand-success font-medium">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
+      
       {/* Preformatted Code Content */}
-      <pre className="p-4 overflow-x-auto font-mono text-sm text-[#00D4FF] bg-black/20">
-        <code>{code}</code>
-      </pre>
+      <div className="overflow-x-auto p-4 bg-black/20 text-[#00D4FF] font-mono text-sm max-h-[400px] scrollbar-thin">
+        <pre><code>{code}</code></pre>
+      </div>
+
+      {/* Interactive Terminal Output */}
+      {output.length > 0 && (
+        <div className="border-t border-brand-border bg-[#0A0A0F] shrink-0">
+          <div className="flex items-center px-4 py-1.5 bg-brand-border/20 border-b border-brand-border select-none">
+            <span className="text-[10px] font-mono font-medium tracking-widest text-brand-muted uppercase">Terminal Output</span>
+          </div>
+          <div className="p-3 font-mono text-xs max-h-[200px] overflow-y-auto scrollbar-thin space-y-1">
+            {output.map((line, i) => (
+              <div key={i} className={line.type === 'error' ? 'text-brand-error' : 'text-brand-text/90'}>
+                <span className="opacity-50 mr-2">❯</span>
+                <span className="whitespace-pre-wrap">{line.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

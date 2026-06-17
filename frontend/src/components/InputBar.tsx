@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Sparkles, Code2, Brain, Edit3, Loader2, Eraser, Mic, MicOff, Paperclip, X } from 'lucide-react';
+import { 
+  Send, Sparkles, Code2, Brain, Edit3, Loader2, Eraser, 
+  Mic, MicOff, Image as ImageIcon, FileText, X 
+} from 'lucide-react';
 import { PersonaType } from '../types';
 
 interface InputBarProps {
@@ -17,6 +20,11 @@ interface InputBarProps {
   previewUrl: string | null;
   onFileSelect: (file: File) => void;
   onClearImage: () => void;
+  // Feature 6 additions
+  attachedDocumentName?: string;
+  isExtractingDocument?: boolean;
+  onDocumentSelect?: (file: File) => void;
+  onClearDocument?: () => void;
 }
 
 interface PersonaOption {
@@ -36,11 +44,16 @@ export const InputBar: React.FC<InputBarProps> = ({
   transcript,
   previewUrl,
   onFileSelect,
-  onClearImage
+  onClearImage,
+  attachedDocumentName,
+  isExtractingDocument,
+  onDocumentSelect,
+  onClearDocument
 }) => {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   const maxCharLimit = 4000;
 
   const personaOptions: PersonaOption[] = [
@@ -66,7 +79,7 @@ export const InputBar: React.FC<InputBarProps> = ({
   }, [text]);
 
   const handleSend = () => {
-    if ((text.trim() || previewUrl) && !isLoading && text.length <= maxCharLimit) {
+    if ((text.trim() || previewUrl || attachedDocumentName) && !isLoading && !isExtractingDocument && text.length <= maxCharLimit) {
       onSendMessage(text);
       setText('');
       // Reset textarea height
@@ -87,6 +100,7 @@ export const InputBar: React.FC<InputBarProps> = ({
   const handleClear = () => {
     setText('');
     onClearImage();
+    if (onClearDocument) onClearDocument();
     if (textareaRef.current) {
       textareaRef.current.focus();
     }
@@ -100,10 +114,18 @@ export const InputBar: React.FC<InputBarProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       onFileSelect(e.target.files[0]);
     }
+  };
+
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && onDocumentSelect) {
+      onDocumentSelect(e.target.files[0]);
+    }
+    // Clear input value so same file can be selected again
+    e.target.value = '';
   };
 
   const currentPersonaOption = personaOptions.find(o => o.id === selectedPersona) || personaOptions[0];
@@ -112,21 +134,40 @@ export const InputBar: React.FC<InputBarProps> = ({
     <div className="p-4 bg-brand-card/60 border-t border-brand-border/60 backdrop-blur-md sticky bottom-0 z-20">
       <div className="max-w-4xl mx-auto flex flex-col space-y-2">
         
-        {/* Attachment Preview (Feature 2) */}
-        {previewUrl && (
-          <div className="relative inline-flex items-center">
-            <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-brand-border bg-[#0A0A0F]/80 p-1 flex items-center justify-center shadow-md animate-fade-in">
-              <img src={previewUrl} alt="Upload preview" className="w-full h-full object-cover rounded-lg" />
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Attachment Preview (Feature 2) */}
+          {previewUrl && (
+            <div className="relative inline-flex items-center">
+              <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-brand-border bg-[#0A0A0F]/80 p-1 flex items-center justify-center shadow-md animate-fade-in">
+                <img src={previewUrl} alt="Upload preview" className="w-full h-full object-cover rounded-lg" />
+                <button
+                  onClick={onClearImage}
+                  className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-brand-error text-white transition-colors border border-white/10"
+                  title="Remove attached image"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Document Chip (Feature 6) */}
+          {attachedDocumentName && (
+            <div className="inline-flex items-center space-x-2 bg-brand-primary/10 border border-brand-primary/30 rounded-xl px-3 py-2 animate-fade-in shadow-sm">
+              <FileText className="h-4 w-4 text-brand-primary" />
+              <span className="text-xs font-medium text-brand-text/90 max-w-[150px] md:max-w-xs truncate">
+                {attachedDocumentName}
+              </span>
               <button
-                onClick={onClearImage}
-                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-brand-error text-white transition-colors border border-white/10"
-                title="Remove attached image"
+                onClick={onClearDocument}
+                className="p-1 rounded-full text-brand-muted hover:text-brand-error hover:bg-brand-border transition-colors"
+                title="Remove document"
               >
                 <X className="h-3 w-3" />
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Controls Row: Persona Selector + Eraser + Keyboard hint */}
         <div className="flex items-center justify-between">
@@ -152,7 +193,7 @@ export const InputBar: React.FC<InputBarProps> = ({
             </div>
             
             {/* Clear Input Tool */}
-            {(text.length > 0 || previewUrl) && (
+            {(text.length > 0 || previewUrl || attachedDocumentName) && (
               <button
                 onClick={handleClear}
                 className="p-1 rounded-md text-brand-muted hover:text-brand-text hover:bg-brand-border/40 transition-colors"
@@ -190,28 +231,50 @@ export const InputBar: React.FC<InputBarProps> = ({
                 ? 'Listening... speak clearly into your microphone' 
                 : previewUrl 
                   ? 'Ask NexusAI about this image...' 
-                  : `Ask NexusAI anything... (${currentPersonaOption.name} mode active)`
+                  : attachedDocumentName
+                    ? 'Ask NexusAI a question about this document...'
+                    : `Ask NexusAI anything... (${currentPersonaOption.name} mode active)`
             }
             className="flex-1 resize-none bg-transparent outline-none border-none py-1.5 px-3 text-sm md:text-base text-brand-text max-h-[200px] overflow-y-auto leading-relaxed placeholder:text-brand-muted/80 scrollbar-thin"
-            disabled={isLoading}
+            disabled={isLoading || isExtractingDocument}
           />
           
           {/* Action Row: Attach File + Mic + Character Counter + Send Action */}
-          <div className="flex items-center space-x-2 shrink-0">
-            {/* Attachment Button */}
+          <div className="flex items-center space-x-1 md:space-x-2 shrink-0">
+            {/* Image Attachment Button */}
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => imageInputRef.current?.click()}
               className="p-2.5 rounded-xl transition-all duration-200 select-none bg-brand-border/40 text-brand-text/70 hover:text-brand-text hover:bg-brand-border"
               title="Attach Image (PNG/JPG/WEBP/GIF)"
             >
-              <Paperclip className="h-4.5 w-4.5" />
+              <ImageIcon className="h-[18px] w-[18px]" />
             </button>
             <input
-              ref={fileInputRef}
+              ref={imageInputRef}
               type="file"
               accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
-              onChange={handleFileChange}
+              onChange={handleImageChange}
+              className="hidden"
+            />
+
+            {/* Document Attachment Button */}
+            <button
+              type="button"
+              onClick={() => documentInputRef.current?.click()}
+              className={`p-2.5 rounded-xl transition-all duration-200 select-none ${
+                isExtractingDocument ? 'bg-brand-primary/20 text-brand-primary' : 'bg-brand-border/40 text-brand-text/70 hover:text-brand-text hover:bg-brand-border'
+              }`}
+              title="Attach Document (PDF/TXT/MD/CSV)"
+              disabled={isExtractingDocument}
+            >
+              {isExtractingDocument ? <Loader2 className="h-[18px] w-[18px] animate-spin" /> : <FileText className="h-[18px] w-[18px]" />}
+            </button>
+            <input
+              ref={documentInputRef}
+              type="file"
+              accept=".pdf,.txt,.md,.csv,.json"
+              onChange={handleDocumentChange}
               className="hidden"
             />
 
@@ -234,30 +297,30 @@ export const InputBar: React.FC<InputBarProps> = ({
                 />
               )}
               {isRecording ? (
-                <MicOff className="h-4.5 w-4.5 relative z-10 animate-pulse" />
+                <MicOff className="h-[18px] w-[18px] relative z-10 animate-pulse" />
               ) : (
-                <Mic className="h-4.5 w-4.5" />
+                <Mic className="h-[18px] w-[18px]" />
               )}
             </button>
 
-            <span className={`text-[10px] select-none ${text.length > maxCharLimit ? 'text-brand-error' : 'text-brand-muted'}`}>
+            <span className={`hidden md:inline-block text-[10px] select-none ${text.length > maxCharLimit ? 'text-brand-error' : 'text-brand-muted'} px-1`}>
               {text.length} / {maxCharLimit}
             </span>
             
             <button
               onClick={handleSend}
-              disabled={isLoading || (!text.trim() && !previewUrl) || text.length > maxCharLimit}
+              disabled={isLoading || isExtractingDocument || (!text.trim() && !previewUrl && !attachedDocumentName) || text.length > maxCharLimit}
               className={`p-2.5 rounded-xl transition-all duration-200 select-none ${
-                isLoading || (!text.trim() && !previewUrl) || text.length > maxCharLimit
+                isLoading || isExtractingDocument || (!text.trim() && !previewUrl && !attachedDocumentName) || text.length > maxCharLimit
                   ? 'bg-brand-border text-brand-muted cursor-not-allowed'
                   : 'bg-gradient-accent text-white shadow-glow hover:opacity-95 hover:scale-105 active:scale-95'
               }`}
               title="Send Message"
             >
               {isLoading ? (
-                <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                <Loader2 className="h-[18px] w-[18px] animate-spin" />
               ) : (
-                <Send className="h-4.5 w-4.5" />
+                <Send className="h-[18px] w-[18px]" />
               )}
             </button>
           </div>
